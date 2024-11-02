@@ -1,5 +1,7 @@
 # go-rename-imports
 
+Install: `go install github.com/bir3/go-rename-imports@latest`
+
 ```
 go-rename-imports
 
