@@ -210,7 +210,7 @@ usage:
   $self rename-imports        [-w] -e pkg|newPkg <file/dir>  ...
   $self rename-prefix-imports [-w] -e pkgPrefix|newPrefix <file/dir>  ...
   $self find-go-files <file/dir> ..
-  $self list-imports <file/dir> ..
+  $self list-imports [-show-path] <file/dir> ..
 -w = modify file in-place
 -e <pattern> = can be given multiple times
 <file/dir> = can be given multiple times
