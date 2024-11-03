@@ -1,5 +1,7 @@
 package main
-
+//
+// DO NOT MODIFY - generated code via 'go generate'
+//
 import "testing"
 
 func Test_add(t *testing.T) {

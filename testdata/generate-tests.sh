@@ -6,7 +6,9 @@ set -eu
 function emit() {
     cat <<END
 package main
-
+//
+// DO NOT MODIFY - generated code via 'go generate'
+//
 import "testing"
 
 END
