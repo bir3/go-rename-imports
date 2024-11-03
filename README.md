@@ -16,6 +16,7 @@ usage:
 -w = modify file in-place
 -e <pattern> = can be given multiple times
 <file/dir> = can be given multiple times```
+```
 
 # Links
 
