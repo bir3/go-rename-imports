@@ -16,3 +16,8 @@ usage:
 -w = modify file in-place
 -e <pattern> = can be given multiple times
 <file/dir> = can be given multiple times```
+
+# Links
+
+- https://eli.thegreenplace.net/2021/rewriting-go-source-code-with-ast-tooling/
+- https://pkg.go.dev/golang.org/x/tools@v0.17.0/go/ast/astutil
