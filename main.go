@@ -59,7 +59,7 @@ func listImports(path string, showPath bool) {
 	}
 }
 
-func modifyImports(cmd string, path string, args []string, write bool) {
+func modifyImports(cmd string, path string, patternList []Pattern, write bool) {
 	fset := token.NewFileSet()
 	goFile, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
 
@@ -72,8 +72,8 @@ func modifyImports(cmd string, path string, args []string, write bool) {
 		imports[p] = true
 	}
 	modified := false
-	for _, s := range args {
-		e := strings.Split(s, "|")
+	for _, pattern := range patternList {
+		e := strings.Split(pattern.pattern, "|")
 		pkg := e[0]
 		// catch input errors
 		assert(len(pkg) > 0)
@@ -82,40 +82,42 @@ func modifyImports(cmd string, path string, args []string, write bool) {
 		assert(strings.TrimSpace(pkg) == pkg)
 		assert(len(strings.Fields(pkg)) == 1)
 		switch cmd {
-		case "rename-imports":
-			assert(len(e) == 2)
-			newPkg := e[1]
-			if astutil.RewriteImport(fset, goFile, pkg, newPkg) {
-				modified = true
-			}
-		case "rename-prefix-imports":
-			assert(len(e) == 2)
-			// order is important:
-			// 		rename internal/syscall/ => export/syscall/
-			//      rename internal/         => special/
-			// => we remove import once we have renamed it via dlist
-			dlist := []string{}
-			newPrefix := e[1]
-			for ip, _ := range imports {
-				if strings.HasPrefix(ip, pkg) {
-					newPkg := newPrefix + ip[len(pkg):]
-					if astutil.RewriteImport(fset, goFile, ip, newPkg) {
-						modified = true
-					} else {
-						panic("must find")
+		case "rename":
+			if !pattern.prefix {
+				assert(len(e) == 2)
+				newPkg := e[1]
+				if astutil.RewriteImport(fset, goFile, pkg, newPkg) {
+					modified = true
+				}
+			} else {
+				assert(len(e) == 2)
+				// order is important:
+				// 		rename internal/syscall/ => export/syscall/
+				//      rename internal/         => special/
+				// => we remove import once we have renamed it via dlist
+				dlist := []string{}
+				newPrefix := e[1]
+				for ip, _ := range imports {
+					if strings.HasPrefix(ip, pkg) {
+						newPkg := newPrefix + ip[len(pkg):]
+						if astutil.RewriteImport(fset, goFile, ip, newPkg) {
+							modified = true
+						} else {
+							panic("must find")
+						}
+						dlist = append(dlist, ip)
 					}
-					dlist = append(dlist, ip)
+				}
+				for _, ip := range dlist {
+					delete(imports, ip)
 				}
 			}
-			for _, ip := range dlist {
-				delete(imports, ip)
-			}
-		case "delete-imports":
+		case "delete":
 			assert(len(e) == 1)
 			if astutil.DeleteImport(fset, goFile, pkg) {
 				modified = true
 			}
-		case "add-imports":
+		case "add":
 			assert(len(e) == 1)
 			astutil.AddImport(fset, goFile, pkg)
 			modified = true
@@ -190,32 +192,51 @@ func arg2files(args []string) []string {
 	return out
 }
 
-type PatternList []string
-
-func (i *PatternList) String() string {
-	return fmt.Sprintf("%v", *i)
+type Pattern struct {
+	prefix  bool
+	pattern string
 }
 
-func (i *PatternList) Set(value string) error {
-	*i = append(*i, value)
+var patternList []Pattern
+
+type Path struct{}
+type PrefixPath struct{}
+
+func (i *Path) String() string {
+	return ""
+}
+
+func (i *Path) Set(value string) error {
+	patternList = append(patternList, Pattern{pattern: value})
+	return nil
+}
+
+func (i *PrefixPath) String() string {
+	return ""
+}
+
+func (i *PrefixPath) Set(value string) error {
+	patternList = append(patternList, Pattern{prefix: true, pattern: value})
 	return nil
 }
 
 func printUsage() {
 	s := `
 modify go imports
+	https://github.com/bir3/go-rename-imports
 usage:
-  $self add-imports           [-w] -e pkg <file/dir>  ...
-  $self delete-imports        [-w] -e pkg <file/dir>  ...
-  $self rename-imports        [-w] -e pkg|newPkg <file/dir>  ...
-  $self rename-prefix-imports [-w] -e pkgPrefix|newPrefix <file/dir>  ...
+  $self rename [-w] -e pkg|newPkg  <file/dir>  ...
+  $self rename [-w] -p pkgPrefix|newPrefix <file/dir>  ...
+  $self add    [-w] -e pkg <file/dir>  ...
+  $self delete [-w] -e pkg <file/dir>  ...
   $self find-go-files <file/dir> ..
   $self list-imports [-show-path] <file/dir> ..
 -w = modify file in-place
--e <pattern> = can be given multiple times
+-e pat / -p pat = can be given multiple times
+-e pat / -p pat = can be mixed
 <file/dir> = can be given multiple times
 `
-	s = strings.ReplaceAll(s, "$self", "rename")
+	s = strings.ReplaceAll(s, "$self", "go-rename-imports")
 	fmt.Fprint(os.Stderr, s)
 }
 func main() {
@@ -254,26 +275,27 @@ func main() {
 			fmt.Printf("%s\n", f)
 		}
 
-	case "add-imports",
-		"delete-imports",
-		"rename-imports",
-		"rename-prefix-imports":
+	case "add",
+		"delete",
+		"rename":
 		var write bool
 
-		var patterns PatternList
+		var path Path
+		var prefixPath PrefixPath
 		fs.BoolVar(&write, opt("-w"), false, "write file in-place")
-		fs.Var(&patterns, opt("-e"), "pattern, can be given multiple times")
+		fs.Var(&path, opt("-e"), "pattern, can be given multiple times")
+		fs.Var(&prefixPath, opt("-p"), "prefix pattern, can be given multiple times")
 		err := fs.Parse(os.Args[2:])
 		if err != nil {
 			printUsage()
 			os.Exit(1)
 		}
-		if len(patterns) == 0 {
+		if len(patternList) == 0 {
 			printUsage()
 			log.Fatal("ERROR: missing pattern -e <pattern>")
 		}
 		for _, path := range arg2files(fs.Args()) {
-			modifyImports(cmd, path, patterns, write)
+			modifyImports(cmd, path, patternList, write)
 		}
 
 	default:

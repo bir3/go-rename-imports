@@ -1,0 +1,17 @@
+---
+input: |
+  package abc
+  import "fmt"
+
+  func Print() {
+    fmt.Println("abc")
+  }
+
+cmd: go-rename-imports delete -w -e fmt
+
+expect: |
+  package abc
+
+  func Print() {
+    fmt.Println("abc")
+  }

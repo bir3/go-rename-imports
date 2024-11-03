@@ -1,0 +1,21 @@
+---
+input: |
+  package abc
+  import "fmt/abc"
+  import "fmt/abc2"
+
+  func Print() {
+    fmt.Println("abc")
+  }
+
+cmd: go-rename-imports rename -w -p fmt/|fmt2/
+
+expect: |
+  package abc
+
+  import "fmt2/abc"
+  import "fmt2/abc2"
+
+  func Print() {
+    fmt.Println("abc")
+  }
